@@ -1,6 +1,25 @@
 # telegram-rounder
 
-Telegram bot that turns regular videos into Telegram video notes and can add curved Russian captions, speech-to-text, style presets, and admin stats.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots/api)
+[![Whisper](https://img.shields.io/badge/Speech-faster--whisper-111111)](https://github.com/SYSTRAN/faster-whisper)
+[![Storage](https://img.shields.io/badge/Storage-SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Rendering](https://img.shields.io/badge/Video-FFmpeg-007808?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
+[![Status](https://img.shields.io/badge/Repo-Private-6b7280)](https://github.com/zloinc/telegram-rounder)
+
+Telegram bot for turning regular videos into Telegram video notes with optional Russian speech-to-text, curved caption overlays, admin metrics, and production-safe deployment primitives.
+
+## What It Does
+
+`telegram-rounder` takes a regular Telegram video and returns a rendered video note:
+
+- converts the clip into a Telegram circle
+- optionally recognizes speech with `faster-whisper`
+- renders curved caption text with custom fonts and styles
+- supports manual captions, automatic captions, and quick style preview
+- records timing metrics and fallback behavior for admin monitoring
+
+The project is designed for a small VPS setup and includes webhook mode, SQLite backups, invite-only access, and a protected admin dashboard.
 
 ## Features
 
@@ -13,6 +32,15 @@ Telegram bot that turns regular videos into Telegram video notes and can add cur
 - SQLite storage with backup rotation
 - Built-in admin dashboard for usage and timing metrics
 - Fallback render path: if caption overlay fails, the bot can still send the circle without text
+
+## User Flow
+
+1. User sends a video to the bot.
+2. Bot validates file type, size, and duration.
+3. Bot downloads the file and optionally transcribes speech.
+4. Bot renders the circle and curved overlay.
+5. If overlay rendering fails, bot retries and returns the circle without text.
+6. Metrics are stored in SQLite and shown in the dashboard.
 
 ## Stack
 
@@ -55,6 +83,8 @@ cp .env.example .env
 python3 bot.py
 ```
 
+For local development, polling mode is enough. For production, use webhook mode behind nginx.
+
 ## Bot Commands
 
 | Command | Description |
@@ -66,6 +96,18 @@ python3 bot.py
 | `/clear` | Clear manual caption |
 | `/autocaption on` | Enable automatic speech captions |
 | `/autocaption off` | Disable automatic speech captions |
+
+## Preview and Styling
+
+The bot supports:
+
+- multiple custom fonts
+- text color selection
+- size and position controls
+- optional text background
+- `/preview [text]` for a cheap sample render without processing a full video
+
+The preview command renders a clean white Telegram-like circle and overlays the current caption style on top of it.
 
 ## Configuration
 
@@ -98,6 +140,22 @@ Important variables:
 | `DASHBOARD_USERNAME` | Dashboard login | empty |
 | `DASHBOARD_PASSWORD` | Dashboard password | empty |
 
+## Performance Profile
+
+Recommended profile for a small `2 vCPU` VPS:
+
+- `WHISPER_MODEL=base`
+- `MAX_CONCURRENT=4`
+- `TRANSCRIBE_CONCURRENT=1`
+- `RENDER_CONCURRENT=2`
+- `RENDER_TIMEOUT_SECONDS=90`
+
+Observed bottleneck in real usage is usually render time, not download time. The bot therefore includes:
+
+- stage-based progress messages for the user
+- separate concurrency caps for transcription and rendering
+- fallback rendering without text if overlay generation fails or times out
+
 ## Storage
 
 Runtime state is stored in SQLite, not JSON:
@@ -115,13 +173,6 @@ The bot tracks:
 
 ## Deployment Notes
 
-Recommended profile for a small `2 vCPU` VPS:
-
-- `WHISPER_MODEL=base`
-- `MAX_CONCURRENT=4`
-- `TRANSCRIBE_CONCURRENT=1`
-- `RENDER_CONCURRENT=2`
-
 Recommended production setup:
 
 - run behind nginx with webhook mode
@@ -129,6 +180,14 @@ Recommended production setup:
 - disable file logs and rely on `journald`
 - enable `WEBHOOK_SECRET_TOKEN`
 - use `INVITE_ONLY=true` if the bot is not public
+
+Minimal production layout:
+
+```text
+/opt/circle-bot/app
+/opt/circle-bot/data
+/opt/circle-bot/env
+```
 
 ## Security
 
@@ -165,6 +224,13 @@ Typical URL:
 https://your-domain/admin/circle-bot
 ```
 
+## Testing
+
+```bash
+python3 -m py_compile bot.py bot_logic.py processor.py speech.py storage.py
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
 ## Repository Hygiene
 
 Ignored by default:
@@ -177,3 +243,11 @@ Ignored by default:
 - migrated runtime files
 
 That keeps the repo safe to push as a private project without leaking deployment state.
+
+## Roadmap Ideas
+
+- style presets for different caption looks
+- separate title mode vs subtitle mode
+- better admin controls from the dashboard
+- smarter post-processing for speech captions
+- faster simple-render mode for short captions
