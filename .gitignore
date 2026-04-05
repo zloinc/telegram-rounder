@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+bot.log
+.debug/
+debug_render/
+data/
+settings.json
+users.json
+*.migrated
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
