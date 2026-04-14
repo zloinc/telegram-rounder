@@ -41,13 +41,18 @@ class Storage:
                 """
                 CREATE TABLE IF NOT EXISTS user_settings (
                     user_id INTEGER PRIMARY KEY,
+                    preset TEXT,
                     caption_mode TEXT,
                     manual_caption TEXT,
                     text_color TEXT,
                     font TEXT,
                     font_size TEXT,
                     text_position TEXT,
-                    text_bg INTEGER NOT NULL DEFAULT 0
+                    text_bg INTEGER NOT NULL DEFAULT 0,
+                    fx_grade TEXT,
+                    fx_sharpness TEXT,
+                    fx_grain TEXT,
+                    fx_ring TEXT
                 )
                 """
             )
@@ -94,6 +99,14 @@ class Storage:
                 "fallback_without_caption",
                 "INTEGER NOT NULL DEFAULT 0",
             )
+            self._ensure_column(conn, "user_settings", "preset", "TEXT")
+            self._ensure_column(conn, "user_settings", "fx_grade", "TEXT")
+            self._ensure_column(conn, "user_settings", "fx_sharpness", "TEXT")
+            self._ensure_column(conn, "user_settings", "fx_grain", "TEXT")
+            self._ensure_column(conn, "user_settings", "fx_ring", "TEXT")
+            self._ensure_column(conn, "user_settings", "fx_vignette", "TEXT")
+            self._ensure_column(conn, "user_settings", "fx_chroma", "TEXT")
+            self._ensure_column(conn, "user_settings", "fx_fisheye", "TEXT")
         os.chmod(self.db_path, 0o600)
         self._migrate_legacy_files()
 
@@ -101,14 +114,16 @@ class Storage:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT user_id, caption_mode, manual_caption, text_color, font,
-                       font_size, text_position, text_bg
+                SELECT user_id, preset, caption_mode, manual_caption, text_color, font,
+                       font_size, text_position, text_bg, fx_grade, fx_sharpness,
+                       fx_grain, fx_ring, fx_vignette, fx_chroma, fx_fisheye
                 FROM user_settings
                 """
             ).fetchall()
         result: dict[int, dict[str, Any]] = {}
         for row in rows:
             result[row["user_id"]] = {
+                "preset": row["preset"],
                 "caption_mode": row["caption_mode"],
                 "manual_caption": row["manual_caption"],
                 "text_color": row["text_color"],
@@ -116,6 +131,13 @@ class Storage:
                 "font_size": row["font_size"],
                 "text_position": row["text_position"],
                 "text_bg": bool(row["text_bg"]),
+                "fx_grade": row["fx_grade"],
+                "fx_sharpness": row["fx_sharpness"],
+                "fx_grain": row["fx_grain"],
+                "fx_ring": row["fx_ring"],
+                "fx_vignette": row["fx_vignette"],
+                "fx_chroma": row["fx_chroma"],
+                "fx_fisheye": row["fx_fisheye"],
             }
         return result
 
@@ -124,20 +146,30 @@ class Storage:
             conn.execute(
                 """
                 INSERT INTO user_settings (
-                    user_id, caption_mode, manual_caption, text_color, font,
-                    font_size, text_position, text_bg
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    user_id, preset, caption_mode, manual_caption, text_color, font,
+                    font_size, text_position, text_bg, fx_grade, fx_sharpness,
+                    fx_grain, fx_ring, fx_vignette, fx_chroma, fx_fisheye
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
+                    preset=excluded.preset,
                     caption_mode=excluded.caption_mode,
                     manual_caption=excluded.manual_caption,
                     text_color=excluded.text_color,
                     font=excluded.font,
                     font_size=excluded.font_size,
                     text_position=excluded.text_position,
-                    text_bg=excluded.text_bg
+                    text_bg=excluded.text_bg,
+                    fx_grade=excluded.fx_grade,
+                    fx_sharpness=excluded.fx_sharpness,
+                    fx_grain=excluded.fx_grain,
+                    fx_ring=excluded.fx_ring,
+                    fx_vignette=excluded.fx_vignette,
+                    fx_chroma=excluded.fx_chroma,
+                    fx_fisheye=excluded.fx_fisheye
                 """,
                 (
                     user_id,
+                    settings.get("preset"),
                     settings.get("caption_mode"),
                     settings.get("manual_caption"),
                     settings.get("text_color"),
@@ -145,6 +177,13 @@ class Storage:
                     settings.get("font_size"),
                     settings.get("text_position"),
                     1 if settings.get("text_bg") else 0,
+                    settings.get("fx_grade"),
+                    settings.get("fx_sharpness"),
+                    settings.get("fx_grain"),
+                    settings.get("fx_ring"),
+                    settings.get("fx_vignette"),
+                    settings.get("fx_chroma"),
+                    settings.get("fx_fisheye"),
                 ),
             )
 
@@ -399,6 +438,7 @@ class Storage:
                 self.save_user_settings(
                     int(user_id),
                     {
+                        "preset": row.get("preset"),
                         "caption_mode": row.get("caption_mode"),
                         "manual_caption": row.get("manual_caption"),
                         "text_color": row.get("text_color"),
@@ -406,6 +446,13 @@ class Storage:
                         "font_size": row.get("font_size"),
                         "text_position": row.get("text_position"),
                         "text_bg": bool(row.get("text_bg")),
+                        "fx_grade": row.get("fx_grade"),
+                        "fx_sharpness": row.get("fx_sharpness"),
+                        "fx_grain": row.get("fx_grain"),
+                        "fx_ring": row.get("fx_ring"),
+                        "fx_vignette": row.get("fx_vignette"),
+                        "fx_chroma": row.get("fx_chroma"),
+                        "fx_fisheye": row.get("fx_fisheye"),
                     },
                 )
             self._archive_legacy_file(self.legacy_settings_file)

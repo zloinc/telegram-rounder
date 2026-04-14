@@ -21,7 +21,7 @@ from aiogram.types import (
 from dotenv import load_dotenv
 
 from bot_logic import clear_caption_state, normalize_caption_mode, resolve_caption_strategy
-from processor import create_style_preview_image, probe_video, video_to_circle
+from processor import PRESET_STYLES, create_style_preview_image, probe_video, video_to_circle
 from speech import extract_speech_to_text, warmup
 from storage import Storage
 
@@ -125,6 +125,14 @@ user_font: dict[int, str] = {}
 user_font_size: dict[int, str] = {}   # "S" | "M" | "L"
 user_text_position: dict[int, str] = {}   # "top" | "bottom"
 user_text_bg: dict[int, bool] = {}
+user_preset: dict[int, str] = {}
+user_fx_grade: dict[int, str] = {}
+user_fx_sharpness: dict[int, str] = {}
+user_fx_grain: dict[int, str] = {}
+user_fx_ring: dict[int, str] = {}
+user_fx_vignette: dict[int, str] = {}
+user_fx_chroma: dict[int, str] = {}
+user_fx_fisheye: dict[int, str] = {}
 
 storage = Storage(
     db_path=DATABASE_FILE,
@@ -162,6 +170,107 @@ POSITION_LABELS = {
     "bottom": "↓ Снизу",
     "top":    "↑ Сверху",
 }
+PRESET_LABELS = {
+    "clean": "Clean",
+    "bold": "Bold",
+    "meme": "Meme",
+    "cinema": "Cinema",
+    "editorial": "Editorial",
+}
+GRADE_LABELS = {
+    "auto": "Auto",
+    "off": "Off",
+    "warm": "Warm",
+    "cold": "Cold",
+    "noir": "Noir",
+    "punchy": "Punchy",
+}
+SHARPNESS_LABELS = {
+    "auto": "Auto",
+    "off": "Off",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+}
+GRAIN_LABELS = {
+    "auto": "Auto",
+    "off": "Off",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+}
+RING_LABELS = {
+    "auto": "Auto",
+    "off": "Off",
+    "white": "White",
+    "orange": "Orange",
+    "cyan": "Cyan",
+}
+VIGNETTE_LABELS = {
+    "auto":   "Auto",
+    "off":    "Off",
+    "soft":   "Soft",
+    "medium": "Medium",
+    "strong": "Strong",
+}
+CHROMA_LABELS = {
+    "auto":   "Auto",
+    "off":    "Off",
+    "subtle": "Subtle",
+    "strong": "Strong",
+}
+FISHEYE_LABELS = {
+    "auto":   "Auto",
+    "off":    "Off",
+    "soft":   "Soft",
+    "strong": "Strong",
+}
+PRESET_DEFAULTS = {
+    "clean": {
+        "text_color": "white",
+        "font": "helvetica",
+        "font_size": "M",
+        "text_position": "bottom",
+        "text_bg": False,
+    },
+    "bold": {
+        "text_color": "orange",
+        "font": "impact",
+        "font_size": "L",
+        "text_position": "bottom",
+        "text_bg": True,
+    },
+    "meme": {
+        "text_color": "yellow",
+        "font": "impact",
+        "font_size": "L",
+        "text_position": "bottom",
+        "text_bg": True,
+    },
+    "cinema": {
+        "text_color": "white",
+        "font": "georgia",
+        "font_size": "M",
+        "text_position": "bottom",
+        "text_bg": True,
+    },
+    "editorial": {
+        "text_color": "white",
+        "font": "verdana",
+        "font_size": "S",
+        "text_position": "top",
+        "text_bg": False,
+    },
+}
+FX_DEFAULTS = {
+    "fx_grade": "auto",
+    "fx_sharpness": "auto",
+    "fx_grain": "auto",
+    "fx_ring": "auto",
+    "fx_vignette": "auto",
+    "fx_chroma": "auto",
+    "fx_fisheye": "auto",
+}
 
 # ── settings persistence ───────────────────────────────────────────────────────
 
@@ -182,6 +291,22 @@ def _load_all_settings():
             if "font_size"     in s: user_font_size[uid]     = s["font_size"]
             if "text_position" in s: user_text_position[uid] = s["text_position"]
             if "text_bg"       in s: user_text_bg[uid]       = s["text_bg"]
+            if s.get("preset") in PRESET_LABELS:
+                user_preset[uid] = s["preset"]
+            if s.get("fx_grade") in GRADE_LABELS:
+                user_fx_grade[uid] = s["fx_grade"]
+            if s.get("fx_sharpness") in SHARPNESS_LABELS:
+                user_fx_sharpness[uid] = s["fx_sharpness"]
+            if s.get("fx_grain") in GRAIN_LABELS:
+                user_fx_grain[uid] = s["fx_grain"]
+            if s.get("fx_ring") in RING_LABELS:
+                user_fx_ring[uid] = s["fx_ring"]
+            if s.get("fx_vignette") in VIGNETTE_LABELS:
+                user_fx_vignette[uid] = s["fx_vignette"]
+            if s.get("fx_chroma") in CHROMA_LABELS:
+                user_fx_chroma[uid] = s["fx_chroma"]
+            if s.get("fx_fisheye") in FISHEYE_LABELS:
+                user_fx_fisheye[uid] = s["fx_fisheye"]
         logger.info(f"Loaded settings for {len(data)} users.")
     except Exception as e:
         logger.error(f"Failed to load settings: {e}")
@@ -196,12 +321,20 @@ def _save_user_settings(uid: int):
                 "caption_mode": user_caption_mode.get(
                     uid, normalize_caption_mode(None, AUTO_CAPTION)
                 ),
+                "preset": user_preset.get(uid, "clean"),
                 "manual_caption": user_captions.get(uid),
                 "text_color": user_text_color.get(uid, "white"),
                 "font": user_font.get(uid, "helvetica"),
                 "font_size": user_font_size.get(uid, "M"),
                 "text_position": user_text_position.get(uid, "bottom"),
                 "text_bg": user_text_bg.get(uid, False),
+                "fx_grade": user_fx_grade.get(uid, "auto"),
+                "fx_sharpness": user_fx_sharpness.get(uid, "auto"),
+                "fx_grain": user_fx_grain.get(uid, "auto"),
+                "fx_ring": user_fx_ring.get(uid, "auto"),
+                "fx_vignette": user_fx_vignette.get(uid, "auto"),
+                "fx_chroma": user_fx_chroma.get(uid, "auto"),
+                "fx_fisheye": user_fx_fisheye.get(uid, "auto"),
             },
         )
     except Exception as e:
@@ -265,6 +398,21 @@ def _validate_video(video: types.Video) -> str | None:
     if video.file_size and video.file_size > max_size_bytes:
         return (
             f"📦 Файл слишком большой.\n"
+            f"Лимит: до {MAX_VIDEO_FILE_SIZE_MB} MB."
+        )
+    return None
+
+
+def _validate_video_note(video_note: types.VideoNote) -> str | None:
+    if video_note.duration and video_note.duration > MAX_VIDEO_DURATION:
+        return (
+            f"⏱ Кружок слишком длинный.\n"
+            f"Лимит: до {MAX_VIDEO_DURATION} секунд."
+        )
+    max_size_bytes = MAX_VIDEO_FILE_SIZE_MB * 1024 * 1024
+    if video_note.file_size and video_note.file_size > max_size_bytes:
+        return (
+            f"📦 Кружок слишком большой.\n"
             f"Лимит: до {MAX_VIDEO_FILE_SIZE_MB} MB."
         )
     return None
@@ -610,15 +758,35 @@ def _settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
     size_key  = user_font_size.get(user_id, "M")
     pos_key   = user_text_position.get(user_id, "bottom")
     bg_on     = user_text_bg.get(user_id, False)
+    preset_key = user_preset.get(user_id, "clean")
+    grade_key = user_fx_grade.get(user_id, "auto")
+    sharp_key = user_fx_sharpness.get(user_id, "auto")
+    grain_key = user_fx_grain.get(user_id, "auto")
+    ring_key = user_fx_ring.get(user_id, "auto")
+    vignette_key = user_fx_vignette.get(user_id, "auto")
+    chroma_key = user_fx_chroma.get(user_id, "auto")
+    fisheye_key = user_fx_fisheye.get(user_id, "auto")
 
     color_label = COLOR_LABELS.get(color_key, "⚪ Белый")
     font_label  = FONT_LABELS.get(font_key, "Helvetica")
     size_label  = size_key
     pos_label   = POSITION_LABELS.get(pos_key, "↓ Снизу")
     bg_label    = "🟩 Фон: ВКЛ" if bg_on else "⬛ Фон: ВЫКЛ"
+    preset_label = PRESET_LABELS.get(preset_key, "Clean")
+    fx_summary = (
+        f"🎛 FX: {GRADE_LABELS.get(grade_key, 'Auto')}/"
+        f"{SHARPNESS_LABELS.get(sharp_key, 'Auto')}/"
+        f"{GRAIN_LABELS.get(grain_key, 'Auto')}/"
+        f"{RING_LABELS.get(ring_key, 'Auto')}/"
+        f"{VIGNETTE_LABELS.get(vignette_key, 'Auto')}/"
+        f"{CHROMA_LABELS.get(chroma_key, 'Auto')}/"
+        f"{FISHEYE_LABELS.get(fisheye_key, 'Auto')}"
+    )
 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=ac_label, callback_data="toggle_autocaption")],
+        [InlineKeyboardButton(text=f"✨ Preset: {preset_label}", callback_data="menu_preset")],
+        [InlineKeyboardButton(text=fx_summary, callback_data="menu_fx")],
         [InlineKeyboardButton(text=f"🎨 {color_label}", callback_data="menu_color")],
         [InlineKeyboardButton(text=f"🔤 {font_label}", callback_data="menu_font")],
         [InlineKeyboardButton(text=f"🔡 Размер: {size_label}", callback_data="menu_size")],
@@ -695,6 +863,65 @@ def _position_keyboard(user_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def _preset_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    current = user_preset.get(user_id, "clean")
+    rows = []
+    for key, label in PRESET_LABELS.items():
+        rows.append(
+            [InlineKeyboardButton(
+                text=f"{label} ✓" if key == current else label,
+                callback_data=f"preset_{key}",
+            )]
+        )
+    rows.append([InlineKeyboardButton(text="← Назад", callback_data="menu_main")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _apply_preset(user_id: int, preset_key: str):
+    defaults = PRESET_DEFAULTS[preset_key]
+    user_preset[user_id] = preset_key
+    user_text_color[user_id] = defaults["text_color"]
+    user_font[user_id] = defaults["font"]
+    user_font_size[user_id] = defaults["font_size"]
+    user_text_position[user_id] = defaults["text_position"]
+    user_text_bg[user_id] = defaults["text_bg"]
+    user_fx_grade[user_id] = FX_DEFAULTS["fx_grade"]
+    user_fx_sharpness[user_id] = FX_DEFAULTS["fx_sharpness"]
+    user_fx_grain[user_id] = FX_DEFAULTS["fx_grain"]
+    user_fx_ring[user_id] = FX_DEFAULTS["fx_ring"]
+    user_fx_vignette[user_id] = FX_DEFAULTS["fx_vignette"]
+    user_fx_chroma[user_id] = FX_DEFAULTS["fx_chroma"]
+    user_fx_fisheye[user_id] = FX_DEFAULTS["fx_fisheye"]
+
+
+def _fx_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"🎨 Grade: {GRADE_LABELS[user_fx_grade.get(user_id, 'auto')]}", callback_data="menu_fx_grade")],
+            [InlineKeyboardButton(text=f"✨ Sharpness: {SHARPNESS_LABELS[user_fx_sharpness.get(user_id, 'auto')]}", callback_data="menu_fx_sharpness")],
+            [InlineKeyboardButton(text=f"🌫 Grain: {GRAIN_LABELS[user_fx_grain.get(user_id, 'auto')]}", callback_data="menu_fx_grain")],
+            [InlineKeyboardButton(text=f"💫 Ring: {RING_LABELS[user_fx_ring.get(user_id, 'auto')]}", callback_data="menu_fx_ring")],
+            [InlineKeyboardButton(text=f"🌑 Vignette: {VIGNETTE_LABELS[user_fx_vignette.get(user_id, 'auto')]}", callback_data="menu_fx_vignette")],
+            [InlineKeyboardButton(text=f"🌈 Chroma: {CHROMA_LABELS[user_fx_chroma.get(user_id, 'auto')]}", callback_data="menu_fx_chroma")],
+            [InlineKeyboardButton(text=f"🐟 Fisheye: {FISHEYE_LABELS[user_fx_fisheye.get(user_id, 'auto')]}", callback_data="menu_fx_fisheye")],
+            [InlineKeyboardButton(text="← Назад", callback_data="menu_main")],
+        ]
+    )
+
+
+def _choice_keyboard(prefix: str, current: str, labels: dict[str, str]) -> InlineKeyboardMarkup:
+    rows = []
+    for key, label in labels.items():
+        rows.append(
+            [InlineKeyboardButton(
+                text=f"{label} ✓" if key == current else label,
+                callback_data=f"{prefix}_{key}",
+            )]
+        )
+    rows.append([InlineKeyboardButton(text="← Назад", callback_data="menu_fx")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 # ── commands ──────────────────────────────────────────────────────────────────
 
 @dp.message(Command("start"))
@@ -706,19 +933,20 @@ async def cmd_start(message: Message):
     _register_user(message.from_user)
     storage.increment_metric("start_count")
     await message.answer(
-        "👋 Привет! Я превращаю видео в Telegram-кружок.\n\n"
+        "👋 Привет! Я превращаю видео в Telegram-кружок и умею прокачивать уже готовые кружки.\n\n"
         "📌 Кратко как пользоваться:\n"
-        "1. Отправь обычное видео\n"
-        "2. Я сделаю кружок\n"
+        "1. Отправь обычное видео или уже записанный кружок\n"
+        "2. Я сделаю кружок или добавлю эффекты к существующему\n"
         "3. Если включены авто-субтитры, попробую распознать речь\n\n"
         "⚠️ Ограничения:\n"
         f"• До {MAX_VIDEO_DURATION} секунд\n"
         f"• До {MAX_VIDEO_FILE_SIZE_MB} MB\n"
-        "• Нужен именно video, не video note\n\n"
+        "• Подходят и video, и video note\n\n"
         "🛠 Команды:\n"
         "`/caption Текст` — своя подпись\n"
         "`/clear` — убрать подпись\n"
-        "`/settings` — настройки",
+        "`/settings` — настройки\n"
+        "`/preview` — быстрое превью стиля",
         reply_markup=_settings_keyboard(message.from_user.id),
     )
 
@@ -753,6 +981,14 @@ async def cmd_preview(message: Message):
             font_size_name=user_font_size.get(uid, "M"),
             position=user_text_position.get(uid, "bottom"),
             text_bg=user_text_bg.get(uid, False),
+            preset=user_preset.get(uid, "clean"),
+            fx_grade=user_fx_grade.get(uid, "auto"),
+            fx_sharpness=user_fx_sharpness.get(uid, "auto"),
+            fx_grain=user_fx_grain.get(uid, "auto"),
+            fx_ring=user_fx_ring.get(uid, "auto"),
+            fx_vignette=user_fx_vignette.get(uid, "auto"),
+            fx_chroma=user_fx_chroma.get(uid, "auto"),
+            fx_fisheye=user_fx_fisheye.get(uid, "auto"),
             size=640,
         )
         await message.answer_photo(
@@ -922,6 +1158,123 @@ async def cb_menu_position(callback: CallbackQuery):
     await callback.answer()
 
 
+@dp.callback_query(F.data == "menu_preset")
+async def cb_menu_preset(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "✨ Выбери пресет:\nClean — чисто\nBold — жирно\nMeme — ярко\nCinema — кинематографично\nEditorial — строго",
+        _preset_keyboard(callback.from_user.id),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx")
+async def cb_menu_fx(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "🎛 Advanced FX:\nGrade, sharpness, grain и ring работают как override поверх preset.",
+        _fx_keyboard(callback.from_user.id),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx_grade")
+async def cb_menu_fx_grade(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "🎨 Выбери color grade:",
+        _choice_keyboard("fxgrade", user_fx_grade.get(callback.from_user.id, "auto"), GRADE_LABELS),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx_sharpness")
+async def cb_menu_fx_sharpness(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "✨ Выбери sharpen / clarity:",
+        _choice_keyboard("fxsharp", user_fx_sharpness.get(callback.from_user.id, "auto"), SHARPNESS_LABELS),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx_grain")
+async def cb_menu_fx_grain(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "🌫 Выбери film grain:",
+        _choice_keyboard("fxgrain", user_fx_grain.get(callback.from_user.id, "auto"), GRAIN_LABELS),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx_ring")
+async def cb_menu_fx_ring(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "💫 Выбери neon ring:",
+        _choice_keyboard("fxring", user_fx_ring.get(callback.from_user.id, "auto"), RING_LABELS),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx_vignette")
+async def cb_menu_fx_vignette(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "🌑 Выбери vignette (затемнение краёв):",
+        _choice_keyboard("fxvignette", user_fx_vignette.get(callback.from_user.id, "auto"), VIGNETTE_LABELS),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx_chroma")
+async def cb_menu_fx_chroma(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "🌈 Выбери chroma aberration (цветовые ореолы на тексте):",
+        _choice_keyboard("fxchroma", user_fx_chroma.get(callback.from_user.id, "auto"), CHROMA_LABELS),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "menu_fx_fisheye")
+async def cb_menu_fx_fisheye(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _edit_settings_message(
+        callback.message,
+        "🐟 Выбери Fisheye (искажение линзы объектива):",
+        _choice_keyboard("fxfisheye", user_fx_fisheye.get(callback.from_user.id, "auto"), FISHEYE_LABELS),
+    )
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "toggle_autocaption")
 async def cb_toggle_autocaption(callback: CallbackQuery):
     if not _is_allowed_user(callback.from_user.id):
@@ -1014,18 +1367,141 @@ async def cb_set_position(callback: CallbackQuery):
     await callback.answer(f"✓ {POSITION_LABELS[pos_key]}")
 
 
+@dp.callback_query(F.data.startswith("preset_"))
+async def cb_set_preset(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    uid = callback.from_user.id
+    preset_key = callback.data[len("preset_"):]
+    if preset_key not in PRESET_STYLES:
+        await callback.answer("Неизвестный пресет")
+        return
+    _apply_preset(uid, preset_key)
+    _save_user_settings(uid)
+    await _edit_settings_message(callback.message, "⚙️ Настройки:", _settings_keyboard(uid))
+    await callback.answer(f"✓ {PRESET_LABELS[preset_key]}")
+
+
+async def _set_fx_choice(
+    callback: CallbackQuery,
+    *,
+    store: dict[int, str],
+    key: str,
+    labels: dict[str, str],
+):
+    uid = callback.from_user.id
+    if key not in labels:
+        await callback.answer("Неизвестный параметр")
+        return
+    store[uid] = key
+    _save_user_settings(uid)
+    await _edit_settings_message(callback.message, "🎛 Advanced FX:", _fx_keyboard(uid))
+    await callback.answer(f"✓ {labels[key]}")
+
+
+@dp.callback_query(F.data.startswith("fxgrade_"))
+async def cb_set_fx_grade(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _set_fx_choice(
+        callback,
+        store=user_fx_grade,
+        key=callback.data[len("fxgrade_"):],
+        labels=GRADE_LABELS,
+    )
+
+
+@dp.callback_query(F.data.startswith("fxsharp_"))
+async def cb_set_fx_sharpness(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _set_fx_choice(
+        callback,
+        store=user_fx_sharpness,
+        key=callback.data[len("fxsharp_"):],
+        labels=SHARPNESS_LABELS,
+    )
+
+
+@dp.callback_query(F.data.startswith("fxgrain_"))
+async def cb_set_fx_grain(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _set_fx_choice(
+        callback,
+        store=user_fx_grain,
+        key=callback.data[len("fxgrain_"):],
+        labels=GRAIN_LABELS,
+    )
+
+
+@dp.callback_query(F.data.startswith("fxring_"))
+async def cb_set_fx_ring(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _set_fx_choice(
+        callback,
+        store=user_fx_ring,
+        key=callback.data[len("fxring_"):],
+        labels=RING_LABELS,
+    )
+
+
+@dp.callback_query(F.data.startswith("fxvignette_"))
+async def cb_set_fx_vignette(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _set_fx_choice(
+        callback,
+        store=user_fx_vignette,
+        key=callback.data[len("fxvignette_"):],
+        labels=VIGNETTE_LABELS,
+    )
+
+
+@dp.callback_query(F.data.startswith("fxchroma_"))
+async def cb_set_fx_chroma(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _set_fx_choice(
+        callback,
+        store=user_fx_chroma,
+        key=callback.data[len("fxchroma_"):],
+        labels=CHROMA_LABELS,
+    )
+
+
+@dp.callback_query(F.data.startswith("fxfisheye_"))
+async def cb_set_fx_fisheye(callback: CallbackQuery):
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+    await _set_fx_choice(
+        callback,
+        store=user_fx_fisheye,
+        key=callback.data[len("fxfisheye_"):],
+        labels=FISHEYE_LABELS,
+    )
+
+
 # ── video handler ─────────────────────────────────────────────────────────────
 
-@dp.message(lambda msg: msg.video)
-async def handle_video(message: Message):
+async def _handle_media_message(
+    message: Message,
+    *,
+    media: types.Video | types.VideoNote,
+    source_mime_type: str,
+):
     uid = message.from_user.id
     if not _is_allowed_user(uid):
         await _deny_access_message(message)
-        return
-
-    validation_error = _validate_video(message.video)
-    if validation_error:
-        await message.answer(validation_error)
         return
 
     _register_user(message.from_user)
@@ -1062,8 +1538,7 @@ async def handle_video(message: Message):
                 _status_text(1, 4, "Скачиваю видео", "Получаю файл из Telegram...", 0.08)
             )
 
-        video = message.video
-        file = await bot.get_file(video.file_id)
+        file = await bot.get_file(media.file_id)
 
         async with _processing_semaphore:
             if uid in _processing_queue:
@@ -1094,9 +1569,9 @@ async def handle_video(message: Message):
                 resolved_mode = "manual" if manual_caption else ("auto" if use_auto else "off")
                 job_id = storage.create_processing_job(
                     user_id=uid,
-                    source_duration=actual_duration or video.duration,
-                    source_file_size=actual_size or video.file_size,
-                    source_mime_type=video.mime_type,
+                    source_duration=actual_duration or media.duration,
+                    source_file_size=actual_size or media.file_size,
+                    source_mime_type=source_mime_type,
                     caption_mode=resolved_mode,
                     manual_caption_used=bool(manual_caption),
                 )
@@ -1164,6 +1639,14 @@ async def handle_video(message: Message):
                     size_key  = user_font_size.get(uid, "M")
                     pos_key   = user_text_position.get(uid, "bottom")
                     bg_on     = user_text_bg.get(uid, False)
+                    preset_key = user_preset.get(uid, "clean")
+                    fx_grade = user_fx_grade.get(uid, "auto")
+                    fx_sharpness = user_fx_sharpness.get(uid, "auto")
+                    fx_grain = user_fx_grain.get(uid, "auto")
+                    fx_ring = user_fx_ring.get(uid, "auto")
+                    fx_vignette = user_fx_vignette.get(uid, "auto")
+                    fx_chroma = user_fx_chroma.get(uid, "auto")
+                    fx_fisheye = user_fx_fisheye.get(uid, "auto")
 
                     render_started = monotonic()
                     render_anim = asyncio.create_task(
@@ -1189,6 +1672,14 @@ async def handle_video(message: Message):
                                     font_size_name=size_key,
                                     position=pos_key,
                                     text_bg=bg_on,
+                                    preset=preset_key,
+                                    fx_grade=fx_grade,
+                                    fx_sharpness=fx_sharpness,
+                                    fx_grain=fx_grain,
+                                    fx_ring=fx_ring,
+                                    fx_vignette=fx_vignette,
+                                    fx_chroma=fx_chroma,
+                                    fx_fisheye=fx_fisheye,
                                     size=640,
                                 ),
                                 timeout=RENDER_TIMEOUT_SECONDS,
@@ -1221,6 +1712,14 @@ async def handle_video(message: Message):
                                     font_size_name=size_key,
                                     position=pos_key,
                                     text_bg=False,
+                                    preset=preset_key,
+                                    fx_grade=fx_grade,
+                                    fx_sharpness=fx_sharpness,
+                                    fx_grain=fx_grain,
+                                    fx_ring=fx_ring,
+                                    fx_vignette=fx_vignette,
+                                    fx_chroma=None,
+                                    fx_fisheye=fx_fisheye,
                                     size=640,
                                 ),
                                 timeout=RENDER_TIMEOUT_SECONDS,
@@ -1329,12 +1828,69 @@ async def handle_video(message: Message):
             _processing_queue.remove(uid)
 
 
+@dp.message(lambda msg: msg.video)
+async def handle_video(message: Message):
+    validation_error = _validate_video(message.video)
+    if validation_error:
+        await message.answer(validation_error)
+        return
+    await _handle_media_message(
+        message,
+        media=message.video,
+        source_mime_type=message.video.mime_type or "video/mp4",
+    )
+
+
 @dp.message(lambda msg: msg.video_note)
-async def handle_circle(message: Message):
+async def handle_video_note(message: Message):
     if not _is_allowed_user(message.from_user.id):
         await _deny_access_message(message)
         return
-    await message.answer("Это уже кружок! Отправь обычное видео для конвертации.")
+    validation_error = _validate_video_note(message.video_note)
+    if validation_error:
+        await message.answer(validation_error)
+        return
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Обработать кружок", callback_data="vn_process")],
+        [InlineKeyboardButton(text="⚙️ Открыть настройки", callback_data="vn_settings")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="vn_cancel")]
+    ])
+    await message.reply(
+        "🎬 Получен кружок.\n"
+        "Желаешь наложить на него эффекты и сгенерировать субтитры по твоим текущим настройкам?",
+        reply_markup=kb
+    )
+
+
+@dp.callback_query(F.data == "vn_process")
+async def cb_vn_process(callback: CallbackQuery):
+    orig = callback.message.reply_to_message
+    if not orig or not orig.video_note:
+        await callback.answer("Ошибка: не могу найти оригинальный кружок. Перешли его заново.", show_alert=True)
+        return
+    await callback.message.delete()
+    
+    if not _is_allowed_user(callback.from_user.id):
+        await _deny_access_callback(callback)
+        return
+        
+    await _handle_media_message(
+        orig,
+        media=orig.video_note,
+        source_mime_type="video_note",
+    )
+
+
+@dp.callback_query(F.data == "vn_settings")
+async def cb_vn_settings(callback: CallbackQuery):
+    await callback.message.delete()
+    await cmd_settings(callback.message.reply_to_message or callback.message)
+
+
+@dp.callback_query(F.data == "vn_cancel")
+async def cb_vn_cancel(callback: CallbackQuery):
+    await callback.message.delete()
 
 
 # ── entry point ───────────────────────────────────────────────────────────────

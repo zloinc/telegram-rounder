@@ -19,7 +19,7 @@ class StorageTests(unittest.TestCase):
                 encoding="utf-8",
             )
             settings_file.write_text(
-                '{"1":{"caption_mode":"manual","manual_caption":"hello","text_color":"white","font":"helvetica","font_size":"M","text_position":"bottom","text_bg":true}}',
+                '{"1":{"preset":"cinema","caption_mode":"manual","manual_caption":"hello","text_color":"white","font":"helvetica","font_size":"M","text_position":"bottom","text_bg":true,"fx_grade":"noir","fx_sharpness":"high","fx_grain":"medium","fx_ring":"white","fx_vignette":"soft","fx_chroma":"subtle","fx_fisheye":"soft"}}',
                 encoding="utf-8",
             )
 
@@ -36,6 +36,14 @@ class StorageTests(unittest.TestCase):
 
             self.assertIn("1", users)
             self.assertEqual(settings[1]["manual_caption"], "hello")
+            self.assertEqual(settings[1]["preset"], "cinema")
+            self.assertEqual(settings[1]["fx_grade"], "noir")
+            self.assertEqual(settings[1]["fx_sharpness"], "high")
+            self.assertEqual(settings[1]["fx_grain"], "medium")
+            self.assertEqual(settings[1]["fx_ring"], "white")
+            self.assertEqual(settings[1]["fx_vignette"], "soft")
+            self.assertEqual(settings[1]["fx_chroma"], "subtle")
+            self.assertEqual(settings[1]["fx_fisheye"], "soft")
             self.assertTrue((temp_path / "users.json.migrated").exists())
             self.assertTrue((temp_path / "settings.json.migrated").exists())
 

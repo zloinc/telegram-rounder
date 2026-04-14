@@ -2,15 +2,11 @@ import asyncio
 import logging
 import os
 import re
-import shutil
 import tempfile
 import threading
 
-FFMPEG = (
-    os.getenv("FFMPEG_PATH")
-    or shutil.which("ffmpeg")
-    or "/opt/homebrew/bin/ffmpeg"
-)
+from config import FFMPEG
+
 
 def _whisper_model() -> str:
     return os.getenv("WHISPER_MODEL", "base")

@@ -5,6 +5,7 @@ __pycache__/
 bot.log
 .debug/
 debug_render/
+graphify-out/
 data/
 settings.json
 users.json

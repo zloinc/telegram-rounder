@@ -26,6 +26,27 @@ class ProcessorTests(unittest.TestCase):
     def test_group_words_handles_empty_input(self):
         self.assertEqual(_group_words_into_chunks([]), [])
 
+    def test_group_words_supports_cumulative_reveal(self):
+        words = [
+            {"word": "one", "start": 0.0, "end": 0.2},
+            {"word": "two", "start": 0.3, "end": 0.5},
+            {"word": "three", "start": 1.5, "end": 1.7},
+        ]
+
+        chunks = _group_words_into_chunks(
+            words,
+            max_words=2,
+            max_gap=0.7,
+            cumulative=True,
+        )
+
+        self.assertEqual(
+            [chunk["text"] for chunk in chunks],
+            ["one", "one two", "three"],
+        )
+        self.assertAlmostEqual(chunks[1]["start"], 0.3)
+        self.assertGreater(chunks[1]["end"], chunks[1]["start"])
+
 
 if __name__ == "__main__":
     unittest.main()

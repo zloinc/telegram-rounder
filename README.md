@@ -45,7 +45,7 @@ The project is designed for a small VPS setup and includes webhook mode, SQLite 
 ## Stack
 
 - Python 3
-- `python-telegram-bot`
+- `aiogram`
 - `faster-whisper`
 - `ffmpeg` / `ffprobe`
 - SQLite
